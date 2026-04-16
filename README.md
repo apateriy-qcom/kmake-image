@@ -21,9 +21,9 @@ https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository
 
 ### Add user to the docker group
 ```
-sudo groupadd docker
-sudo usermod -aG docker $USER
-newgrp docker
+getent group docker > /dev/null || sudo groupadd docker
+id -nG "$USER" | grep -qw docker || sudo usermod -aG docker "$USER"
+
 ```
 
 Restart your terminal, or log out and log in again, to ensure your user is
@@ -35,6 +35,8 @@ added to the **docker** group (the output of `id` should contain *docker*).
 *setup.sh* script simplify the initial setup for kernel developers:
 - Builds the Docker image and fetches Qualcomm Kernel source tree and required
 artifacts (ramdisk, systemd-boot).
+- If local Docker build fails, automatically falls back to hosted image:
+  `artifacts.codelinaro.org/clo-420-qli-registry/kmake-image:ver.1.0`
 - Export necessary environment variables for kernel development.
 ```
 ./setup.sh
@@ -77,6 +79,11 @@ docker build -t kmake-image .
 or
 ```
 docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --build-arg USER_NAME=$(whoami) -t kmake-image .
+```
+If local build fails, use hosted image:
+```
+docker pull artifacts.codelinaro.org/clo-420-qli-registry/kmake-image:ver.1.0
+docker tag artifacts.codelinaro.org/clo-420-qli-registry/kmake-image:ver.1.0 kmake-image
 ```
 
 ### 2. Setup the aliases in your .bashrc

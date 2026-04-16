@@ -46,6 +46,7 @@ KERNEL_REPO=https://github.com/qualcomm-linux/kernel.git
 KERNEL_BRANCH=qcom-next
 KERNEL_PATH="../kernel"
 RAMDISK_PATH="https://snapshots.linaro.org/member-builds/qcomlt/testimages/arm64/1379/initramfs-test-image-qemuarm64-20230321073831-1379.rootfs.cpio.gz"
+HOSTED_KMAKE_IMAGE="artifacts.codelinaro.org/clo-420-qli-registry/kmake-image:ver.1.0"
 
 # Parse long options
 eval set -- "$(getopt -n "$0" -o "" \
@@ -75,12 +76,26 @@ if ! command -v docker &> /dev/null; then
 fi
 
 echo "Adding current user to docker group..."
-sudo groupadd docker || true
-sudo usermod -aG docker $USER
-newgrp docker
+
+if getent group docker > /dev/null; then
+    echo "Group 'docker' already exists. Skipping group creation."
+else
+    sudo groupadd docker
+fi
+
+if id -nG "$USER" | grep -qw docker; then
+    echo "User '$USER' is already in docker group."
+else
+    sudo usermod -aG docker "$USER"
+    echo "Added '$USER' to docker group. Re-login may be required for group changes to take effect."
+fi
 
 echo "Building Docker image..."
-docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --build-arg USER_NAME=$(whoami) -t kmake-image .
+if ! docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --build-arg USER_NAME=$(whoami) -t kmake-image .; then
+    echo "Local Docker build failed. Falling back to hosted image: $HOSTED_KMAKE_IMAGE"
+    docker pull "$HOSTED_KMAKE_IMAGE"
+    docker tag "$HOSTED_KMAKE_IMAGE" kmake-image
+fi
 
 echo "Setting up Docker aliases..."
 {
